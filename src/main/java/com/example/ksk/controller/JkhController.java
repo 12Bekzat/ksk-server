@@ -8,6 +8,7 @@ import com.example.ksk.error.AppError;
 import com.example.ksk.repository.HouseRepository;
 import com.example.ksk.repository.JkhRepository;
 import com.example.ksk.service.UserService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +26,7 @@ public class JkhController {
     private final UserService userService;
     private final HouseRepository houseRepository;
 
+    @Transactional
     @GetMapping("/jkh/all")
     public ResponseEntity<?> getAll() {
         List<Jkh> all = jkhRepository.findAll();
@@ -54,6 +56,7 @@ public class JkhController {
         return ResponseEntity.ok(allResponse);
     }
 
+    @Transactional
     @GetMapping("/jkh/{id}")
     public ResponseEntity<?> getJkhById(@PathVariable(name = "id") Long id) {
         Optional<Jkh> byId = jkhRepository.findById(id);
@@ -136,6 +139,7 @@ public class JkhController {
         return new ResponseEntity<>(new AppError(HttpStatus.BAD_REQUEST.value(), "Jkh or User not found!"), HttpStatus.BAD_REQUEST);
     }
 
+    @Transactional
     @PostMapping("/users/{id}/add/house")
     public ResponseEntity<?> addHouse(@PathVariable(name = "id") Long id, @RequestBody HouseDto houseDto) {
         System.out.println(houseDto.getAddress() + " " + houseDto.getJkhId());
@@ -149,19 +153,33 @@ public class JkhController {
             house.setCountOfPeople(houseDto.getCountOfPeople());
             house.setJkh(jkhOptional.get());
             house.setOwner(userOptional.get());
-            houseRepository.save(house);
 
             User user = userOptional.get();
             Jkh jkh = jkhOptional.get();
             user.setHouse(house);
             userService.saveUser(user);
 
-            jkh.addHouse(house);
-            jkhRepository.save(jkh);
-
             return ResponseEntity.ok(new ResponseDto(200, "House added successfully!"));
         }
 
+        return new ResponseEntity<>(new AppError(HttpStatus.BAD_REQUEST.value(), "User not found!"), HttpStatus.BAD_REQUEST);
+    }
+
+    @PostMapping("/users/{id}/add/house/jkh/{jkhId}")
+    public ResponseEntity<?> addHouseToJkh(@PathVariable(name = "id") Long id, @PathVariable(name = "jkhId") Long jkhId) {
+        Optional<User> userOptional = userService.findById(id);
+        Optional<Jkh> jkhOptional = jkhRepository.findById(jkhId);
+
+        if (userOptional.isPresent() && jkhOptional.isPresent()) {
+            User user = userOptional.get();
+
+            House house = user.getHouse();
+            Jkh jkh = jkhOptional.get();
+
+            jkh.addHouse(house);
+            jkhRepository.save(jkh);
+            return ResponseEntity.ok(new ResponseDto(200, "House added successfully!"));
+        }
         return new ResponseEntity<>(new AppError(HttpStatus.BAD_REQUEST.value(), "User not found!"), HttpStatus.BAD_REQUEST);
     }
 

@@ -58,6 +58,7 @@ public class AuthService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication != null && authentication.isAuthenticated()) {
+            System.out.println(authentication.getPrincipal());
             User user = userService.findByUsername(String.valueOf(authentication.getPrincipal())).get();
             return ResponseEntity.ok(new UserImageDto(
                     user.getId(),

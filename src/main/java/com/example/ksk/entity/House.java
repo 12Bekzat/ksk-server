@@ -14,7 +14,7 @@ public class House {
     private float square;
     private int countOfPeople;
 
-    @OneToOne
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private User owner;
 
     @ManyToOne(cascade = CascadeType.REFRESH, fetch = FetchType.EAGER)

@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 @RestController
 @RequiredArgsConstructor
@@ -43,9 +44,14 @@ public class PaymentController {
             User user = userOptional.get();
             Jkh jkh = jkhOptional.get();
 
+            LocalDate date = LocalDate.now();
+
             Payment payment = new Payment();
             payment.setPrice(paymentDto.getPrice());
-            payment.setDeadline(paymentDto.getDeadline());
+            payment.setDeadline(
+                    date.getYear() + "-" +
+                            (date.getMonthValue() < 10 ? ("0" + date.getMonthValue()) : date.getMonthValue()) + "-" +
+                            (date.getDayOfMonth() < 10 ? ("0" + date.getDayOfMonth()) : date.getDayOfMonth()));
             payment.setStatus(0);
 
             List<CounterDto> counters = paymentDto.getCounters();
@@ -53,7 +59,7 @@ public class PaymentController {
                 Counter counter = new Counter();
                 counter.setRemovalDate(item.getRemovalDate());
                 counter.setMeterReadings(item.getMeterReadings());
-                counter.setRate(rateRepository.findById(item.getRate().getId()).get());
+                counter.setRateId(item.getRate());
 
                 counterRepository.save(counter);
                 return counter;
@@ -62,12 +68,9 @@ public class PaymentController {
             payment.setCounters(list);
             payment.setLodger(user);
             payment.setJkh(jkh);
-            paymentRepository.save(payment);
 
             user.addPayment(payment);
             userService.saveUser(user);
-            jkh.addPayment(payment);
-            jkhRepository.save(jkh);
 
             return ResponseEntity.ok(new ResponseDto(200, "Payment sent successfully!"));
         }
@@ -75,18 +78,19 @@ public class PaymentController {
         return new ResponseEntity<>(new AppError(HttpStatus.BAD_REQUEST.value(), "User or Jkh not found!"), HttpStatus.BAD_REQUEST);
     }
 
-    @GetMapping("/jkh/{id}/payments")
-    public ResponseEntity<?> getJkhPayments(@PathVariable(name = "id") Long id) {
-        Optional<Jkh> jkhOptional = jkhRepository.findById(id);
+    @GetMapping("/users/{id}/payments")
+    public ResponseEntity<?> getUserPayments(@PathVariable(name = "id") Long id) {
+        Optional<User> userOptional = userService.findById(id);
 
-        if (jkhOptional.isPresent()) {
-            List<Payment> payments = jkhOptional.get().getPayments();
+        if (userOptional.isPresent()) {
+            List<Payment> payments = userOptional.get().getPayments();
 
-            List<PaymentDto> paymentDtoList = payments.stream().map(item -> {
+            List<PaymentDto> paymentDtoList = payments.stream().filter(item -> {
+                return item.getStatus() == 0 || item.getStatus() == 2;
+            }).map(item -> {
                 PaymentDto paymentDto = new PaymentDto(item.getId(), item.getPrice(), item.getDeadline(), item.getStatus());
                 List<CounterDto> listCounters = item.getCounters().stream().map(counter -> {
-                    return new CounterDto(counter.getId(), counter.getMeterReadings(), counter.getRemovalDate(),
-                            new RateDto(counter.getRate().getId(), counter.getRate().getNumber(), counter.getRate().getName(), counter.getRate().getPrice()));
+                    return new CounterDto(counter.getId(), counter.getMeterReadings(), counter.getRemovalDate(), counter.getRateId());
                 }).toList();
 
                 User lodger = item.getLodger();
@@ -106,11 +110,11 @@ public class PaymentController {
             return ResponseEntity.ok(paymentDtoList);
         }
 
-        return new ResponseEntity<>(new AppError(HttpStatus.BAD_REQUEST.value(), "Jkh not found!"), HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(new AppError(HttpStatus.BAD_REQUEST.value(), "User not found!"), HttpStatus.BAD_REQUEST);
     }
 
-    @GetMapping("/users/{id}/payments")
-    public ResponseEntity<?> getUserPayments(@PathVariable(name = "id") Long id) {
+    @GetMapping("/users/{id}/payments/all")
+    public ResponseEntity<?> getUserAllPayments(@PathVariable(name = "id") Long id) {
         Optional<User> userOptional = userService.findById(id);
 
         if (userOptional.isPresent()) {
@@ -119,8 +123,7 @@ public class PaymentController {
             List<PaymentDto> paymentDtoList = payments.stream().map(item -> {
                 PaymentDto paymentDto = new PaymentDto(item.getId(), item.getPrice(), item.getDeadline(), item.getStatus());
                 List<CounterDto> listCounters = item.getCounters().stream().map(counter -> {
-                    return new CounterDto(counter.getId(), counter.getMeterReadings(), counter.getRemovalDate(),
-                            new RateDto(counter.getRate().getId(), counter.getRate().getNumber(), counter.getRate().getName(), counter.getRate().getPrice()));
+                    return new CounterDto(counter.getId(), counter.getMeterReadings(), counter.getRemovalDate(), counter.getRateId());
                 }).toList();
 
                 User lodger = item.getLodger();
@@ -165,7 +168,72 @@ public class PaymentController {
 
                 payment.setPrice(payment.getPrice() + fine);
                 paymentRepository.save(payment);
+                return ResponseEntity.ok(new ResponseDto(200, "Payment is expired!"));
             }
+            return ResponseEntity.ok(new ResponseDto(200, "Payment is not expired!"));
+        }
+
+        return new ResponseEntity<>(new AppError(HttpStatus.BAD_REQUEST.value(), "Payment not found!"), HttpStatus.BAD_REQUEST);
+    }
+
+    @PostMapping("/users/{id}/payments/expired")
+    public ResponseEntity<?> expirePayments(@PathVariable(name = "id") Long id) throws ParseException {
+        Optional<User> userOptional = userService.findById(id);
+
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            System.out.println("Expired " + user);
+
+            List<Payment> payments = user.getPayments();
+            System.out.println("Payments count is " + payments.size());
+
+            List<Payment> list = payments.stream().map(payment -> {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+                System.out.println("Dates: ");
+                Date dateFromString = null;
+                try {
+                    dateFromString = dateFormat.parse(payment.getDeadline());
+                } catch (ParseException e) {
+                    throw new RuntimeException(e);
+                }
+                Date currentDate = new Date();
+
+
+                if (dateFromString.before(currentDate) && payment.getStatus() != 1) {
+                    payment.setStatus(2);
+
+                    long diffInMillis = Math.abs(dateFromString.getTime() - currentDate.getTime());
+                    long diffInDays = TimeUnit.DAYS.convert(diffInMillis, TimeUnit.MILLISECONDS);
+
+                    float fine = payment.getPrice() * diffInDays;
+                    fine *= (float) (0.0001 * diffInDays);
+
+                    payment.setPrice(payment.getPrice() + fine);
+                    paymentRepository.save(payment);
+                }
+
+                return payment;
+            }).toList();
+
+            return ResponseEntity.ok(new ResponseDto(200, "Payment sent successfully!"));
+        }
+
+        return new ResponseEntity<>(new AppError(HttpStatus.BAD_REQUEST.value(), "User not found!"), HttpStatus.BAD_REQUEST);
+    }
+
+    @PostMapping("/payment/{id}/pay")
+    public ResponseEntity<?> payPayments(@PathVariable(name = "id") Long id) {
+        Optional<Payment> paymentOptional = paymentRepository.findById(id);
+
+        if (paymentOptional.isPresent()) {
+            Payment payment = paymentOptional.get();
+            System.out.println(payment);
+
+            payment.setStatus(1);
+            System.out.println(payment);
+            paymentRepository.save(payment);
+
+            return ResponseEntity.ok(new ResponseDto(200, "Payment payed successfully!"));
         }
 
         return new ResponseEntity<>(new AppError(HttpStatus.BAD_REQUEST.value(), "Payment not found!"), HttpStatus.BAD_REQUEST);

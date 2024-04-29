@@ -22,4 +22,14 @@ public class Payment {
     private User lodger;
     @ManyToOne(cascade = CascadeType.REFRESH, fetch = FetchType.EAGER)
     private Jkh jkh;
+
+    @Override
+    public String toString() {
+        return "Payment{" +
+                "id=" + id +
+                ", price=" + price +
+                ", deadline='" + deadline + '\'' +
+                ", status=" + status +
+                '}';
+    }
 }

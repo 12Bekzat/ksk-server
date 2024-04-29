@@ -9,5 +9,5 @@ public class CounterDto {
     private Long id;
     private int meterReadings;
     private String removalDate;
-    private RateDto rate;
+    private Long rate;
 }

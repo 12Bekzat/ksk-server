@@ -16,7 +16,5 @@ public class Counter {
     private int meterReadings;
     private String removalDate;
 
-    @ManyToOne(cascade = CascadeType.REFRESH, fetch = FetchType.EAGER)
-    private Rate rate;
-
+    private Long rateId;
 }

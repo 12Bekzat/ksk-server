@@ -23,9 +23,6 @@ public class Jkh {
     private List<User> employee;
 
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Payment> payments;
-
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<House> clients;
 
     public void addEmployee(User user) {
@@ -42,9 +39,5 @@ public class Jkh {
 
     public void removeHouse(House house) {
         clients.remove(house);
-    }
-
-    public void addPayment(Payment payment) {
-        payments.add(payment);
     }
 }

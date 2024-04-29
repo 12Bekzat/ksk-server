@@ -22,7 +22,7 @@ public class User {
     @OneToOne(cascade = CascadeType.ALL)
     private Image avatar;
 
-    @OneToOne
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private House house;
 
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -47,5 +47,16 @@ public class User {
     }
     public void addPayment(Payment payment) {
         payments.add(payment);
+    }
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "id=" + id +
+                ", username='" + username + '\'' +
+                ", fullName='" + fullName + '\'' +
+                ", password='" + password + '\'' +
+                ", email='" + email + '\'' +
+                '}';
     }
 }
