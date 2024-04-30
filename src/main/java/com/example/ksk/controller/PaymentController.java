@@ -45,6 +45,7 @@ public class PaymentController {
             Jkh jkh = jkhOptional.get();
 
             LocalDate date = LocalDate.now();
+            date = date.plusDays(10);
 
             Payment payment = new Payment();
             payment.setPrice(paymentDto.getPrice());
